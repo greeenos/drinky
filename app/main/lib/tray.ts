@@ -9,11 +9,14 @@ import {
   checkInWorkingHours,
   getBreakTime,
   getTimeSinceLastCompletedBreak,
+  isDailyGoalReached,
   isHavingBreak,
+  logDrinkNow,
   startBreakNow,
 } from "./breaks";
 import {
   getDisableEndTime,
+  getDrankTodayMl,
   getSettings,
   setDisableEndTime,
   setSettings,
@@ -176,8 +179,8 @@ export function buildTray(): void {
     dialog.showMessageBox({
       title: "About",
       type: "info",
-      message: `BreakTimer`,
-      detail: `Build: ${packageJson.version}\n\nWebsite:\nhttps://breaktimer.app\n\nSource Code:\nhttps://github.com/tom-james-watson/breaktimer-app\n\nDistributed under GPL-3.0-or-later license.`,
+      message: `Drinky`,
+      detail: `Build: ${packageJson.version}\n\nStay hydrated.\n\nBased on BreakTimer by Tom Watson:\nhttps://github.com/tom-james-watson/breaktimer-app\n\nDistributed under GPL-3.0-or-later license.`,
     });
   };
 
@@ -197,17 +200,23 @@ export function buildTray(): void {
 
   if (minsLeft !== undefined) {
     if (minsLeft > 1) {
-      nextBreak = `Next break in ${minsLeft} minutes`;
+      nextBreak = `Next drink in ${minsLeft} minutes`;
     } else if (minsLeft === 1) {
-      nextBreak = `Next break in 1 minute`;
+      nextBreak = `Next drink in 1 minute`;
     } else {
-      nextBreak = `Next break in less than a minute`;
+      nextBreak = `Next drink in less than a minute`;
     }
   }
 
   const disableEndTime = getDisableEndTime();
 
   const contextMenu = Menu.buildFromTemplate([
+    {
+      label: `Today: ${(getDrankTodayMl() / 1000).toFixed(1)} / ${(
+        settings.dailyGoalMl / 1000
+      ).toFixed(1)} L${isDailyGoalReached() ? " — goal reached 🎉" : ""}`,
+      enabled: false,
+    },
     {
       label: nextBreak,
       visible:
@@ -265,7 +274,14 @@ export function buildTray(): void {
       visible: breaksEnabled,
     },
     {
-      label: "Start break now",
+      label: `I drank a glass (${settings.glassMl} ml)`,
+      click: () => {
+        log.info("Log drink selected");
+        logDrinkNow();
+      },
+    },
+    {
+      label: "Drink now",
       visible: !havingBreak,
       click: () => {
         log.info("Start break now selected");

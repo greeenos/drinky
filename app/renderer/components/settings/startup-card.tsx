@@ -13,7 +13,7 @@ export default function StartupCard({
   return (
     <SettingsCard
       title="Start at login"
-      helperText="Automatically start BreakTimer when you log into your computer."
+      helperText="Automatically start Drinky when you log into your computer."
       toggle={{
         checked: settingsDraft.autoLaunch,
         onCheckedChange: (checked) => onSwitchChange("autoLaunch", checked),

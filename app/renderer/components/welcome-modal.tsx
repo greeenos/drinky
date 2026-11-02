@@ -27,7 +27,7 @@ export default function WelcomeModal({ open, onClose }: WelcomeModalProps) {
         showCloseButton={false}
       >
         <DialogHeader className="text-left">
-          <DialogTitle>BreakTimer runs in the background</DialogTitle>
+          <DialogTitle>Drinky runs in the background</DialogTitle>
           <DialogDescription className="text-base leading-relaxed text-balance pt-2">
             The app can be accessed via your system tray.
           </DialogDescription>

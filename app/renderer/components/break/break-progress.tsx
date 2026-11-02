@@ -14,6 +14,7 @@ interface BreakProgressProps {
   textColor: string;
   isClosing?: boolean;
   sharedBreakEndTime?: number | null;
+  drinkStatus?: { drankMl: number; goalMl: number; glassMl: number } | null;
 }
 
 export function BreakProgress({
@@ -25,6 +26,7 @@ export function BreakProgress({
   textColor,
   isClosing = false,
   sharedBreakEndTime = null,
+  drinkStatus = null,
 }: BreakProgressProps) {
   const [timeRemaining, setTimeRemaining] = useState<TimeRemaining | null>(
     null,
@@ -149,7 +151,7 @@ export function BreakProgress({
               borderColor: "rgba(255, 255, 255, 0.2)",
             }}
           >
-            {progress < 0.5 ? "Cancel Break" : "End Break"}
+            Done ✓
           </Button>
         )}
       </div>
@@ -161,6 +163,26 @@ export function BreakProgress({
       >
         {breakMessage}
       </div>
+
+      {drinkStatus && (
+        <div className="space-y-2" style={{ color: textColor }}>
+          <div
+            className="text-5xl font-bold tabular-nums"
+            style={{ color: textColor }}
+          >
+            {drinkStatus.glassMl} ml
+          </div>
+          <div
+            className="text-sm font-medium opacity-70"
+            style={{ color: textColor }}
+          >
+            Glass {Math.floor(drinkStatus.drankMl / drinkStatus.glassMl) + 1} of{" "}
+            {Math.ceil(drinkStatus.goalMl / drinkStatus.glassMl)} ·{" "}
+            {(drinkStatus.drankMl / 1000).toFixed(1)} /{" "}
+            {(drinkStatus.goalMl / 1000).toFixed(1)} L today
+          </div>
+        </div>
+      )}
 
       <div className="w-full">
         <div className="flex justify-end items-center mb-2">

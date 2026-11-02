@@ -11,7 +11,7 @@ import {
 } from "../../types/settings";
 import { sendIpc } from "./ipc";
 import { showNotification } from "./notifications";
-import { getSettings } from "./store";
+import { addDrink, getDrankTodayMl, getSettings } from "./store";
 import { buildTray } from "./tray";
 import { createBreakWindows } from "./windows";
 
@@ -70,6 +70,7 @@ export function resetTimeSinceLastBreak(context: string): void {
 }
 
 function markBreakCompleted(context: string): void {
+  addDrink(getSettings().glassMl);
   resetTimeSinceLastBreak(context);
   currentBreakStartTime = null;
 }
@@ -77,23 +78,10 @@ function markBreakCompleted(context: string): void {
 export function completeBreakTracking(breakDurationMs: number): void {
   if (!currentBreakStartTime) return;
 
-  const settings = getSettings();
-  const requiredDurationMs = settings.breakLengthSeconds * 1000;
-  const halfRequiredDuration = requiredDurationMs / 2;
-
-  if (breakDurationMs >= halfRequiredDuration) {
-    markBreakCompleted(
-      `Break completed [duration=${Math.round(
-        breakDurationMs / 1000,
-      )}s] [required=${settings.breakLengthSeconds}s]`,
-    );
-  } else {
-    log.info(
-      `Break too short [duration=${Math.round(
-        breakDurationMs / 1000,
-      )}s] [required=${settings.breakLengthSeconds}s]`,
-    );
-  }
+  // Ending the popup means the glass was drunk; skip/snooze go via postponeBreak.
+  markBreakCompleted(
+    `Drink completed [duration=${Math.round(breakDurationMs / 1000)}s]`,
+  );
 
   currentBreakStartTime = null;
 }
@@ -229,7 +217,7 @@ function doBreak(): void {
   }
 
   if (settings.notificationType === NotificationType.Notification) {
-    showNotification("Time for a break!", stripHtml(settings.breakMessage));
+    showNotification(settings.breakTitle, stripHtml(settings.breakMessage));
     if (settings.soundType !== SoundType.None) {
       sendIpc(
         IpcChannel.SoundStartPlay,
@@ -321,6 +309,15 @@ export function checkIdle(): boolean {
   return state === IdleState.Idle;
 }
 
+export function isDailyGoalReached(): boolean {
+  return getDrankTodayMl() >= getSettings().dailyGoalMl;
+}
+
+export function logDrinkNow(): void {
+  markBreakCompleted("Drink logged from tray");
+  scheduleNextBreak();
+}
+
 export function isHavingBreak(): boolean {
   return havingBreak;
 }
@@ -330,7 +327,13 @@ function checkShouldHaveBreak(): boolean {
   const inWorkingHours = checkInWorkingHours();
   const idle = checkIdle();
 
-  return !havingBreak && settings.breaksEnabled && inWorkingHours && !idle;
+  return (
+    !havingBreak &&
+    settings.breaksEnabled &&
+    inWorkingHours &&
+    !idle &&
+    !isDailyGoalReached()
+  );
 }
 
 function checkBreak(): void {

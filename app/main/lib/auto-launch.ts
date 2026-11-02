@@ -1,6 +1,6 @@
 import AutoLaunch from "auto-launch";
 
-let app = { name: "BreakTimer" };
+let app = { name: "Drinky" };
 
 if (process.env.APPIMAGE) {
   app = Object.assign(app, { path: process.env.APPIMAGE });

@@ -42,7 +42,7 @@ export function createSettingsWindow(): void {
   }
 
   settingsWindow = new BrowserWindow({
-    title: "BreakTimer — Settings",
+    title: "Drinky — Settings",
     show: false,
     width: 580,
     minWidth: 580,

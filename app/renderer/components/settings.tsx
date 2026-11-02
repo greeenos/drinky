@@ -90,6 +90,10 @@ export default function SettingsEl() {
     });
   };
 
+  const handleNumberChange = (field: keyof Settings, value: number): void => {
+    setSettingsDraft({ ...settingsDraft, [field]: value });
+  };
+
   const handleSwitchChange = (field: string, checked: boolean): void => {
     setSettingsDraft({
       ...settingsDraft,
@@ -101,7 +105,7 @@ export default function SettingsEl() {
     setSettingsDraft({
       ...settingsDraft,
       textColor: "#ffffff",
-      backgroundColor: "#16a085",
+      backgroundColor: "#0284c7",
       backdropOpacity: 0.7,
     });
   };
@@ -160,6 +164,7 @@ export default function SettingsEl() {
               onDateChange={handleDateChange}
               onTextChange={handleTextChange}
               onSwitchChange={handleSwitchChange}
+              onNumberChange={handleNumberChange}
             />
 
             <SmartBreaksCard

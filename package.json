@@ -1,8 +1,8 @@
 {
-  "name": "breaktimer",
-  "version": "2.1.0",
-  "productName": "BreakTimer",
-  "description": "Manage periodic breaks",
+  "name": "drinky",
+  "version": "0.1.0",
+  "productName": "Drinky",
+  "description": "Drink water reminders",
   "scripts": {
     "build": "concurrently \"npm run build-main\" \"npm run build-renderer\"",
     "build-main": "webpack --config webpack.main.config.js",
@@ -31,9 +31,9 @@
   "license": "GPL-3.0-or-later",
   "main": "./app/main/dist/main.prod.js",
   "build": {
-    "productName": "BreakTimer",
-    "copyright": "Copyright © 2019 Thomas James Watson",
-    "appId": "com.tomjwatson.breaktimer",
+    "productName": "Drinky",
+    "copyright": "Copyright © 2019 Thomas James Watson, 2026 Adam Green",
+    "appId": "com.adamgreen.drinky",
     "files": [
       "!node_modules",
       "dist/renderer/",
@@ -65,7 +65,6 @@
     ],
     "asar": true,
     "artifactName": "${productName}.${ext}",
-    "afterPack": "./scripts/afterPack.js",
     "toolsets": {
       "appimage": "1.0.3"
     },
@@ -74,12 +73,11 @@
       "entitlements": "./internals/build/entitlements.mac.plist",
       "entitlementsInherit": "./internals/build/entitlements.mac.plist",
       "extendInfo": {
-        "LSUIElement": 1,
-        "CFBundleIconName": "AppIcon"
+        "LSUIElement": 1
       },
       "gatekeeperAssess": false,
-      "hardenedRuntime": true,
-      "notarize": true,
+      "hardenedRuntime": false,
+      "notarize": false,
       "target": [
         {
           "target": "dmg",
@@ -123,7 +121,7 @@
         "rpm",
         "tar.gz"
       ],
-      "executableName": "breaktimer",
+      "executableName": "drinky",
       "category": "Utility"
     },
     "snap": {
@@ -133,12 +131,6 @@
     "directories": {
       "buildResources": "resources",
       "output": "release"
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "tom-james-watson",
-      "repo": "breaktimer-app",
-      "private": false
     }
   },
   "repository": {
@@ -173,7 +165,6 @@
     "electron-debug": "^4.1.0",
     "electron-devtools-installer": "^4.0.0",
     "electron-log": "^5.4.4",
-    "electron-updater": "^6.8.9",
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",

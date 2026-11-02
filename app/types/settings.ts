@@ -60,6 +60,8 @@ export interface Settings {
   skipBreakEnabled: boolean;
   postponeBreakEnabled: boolean;
   immediatelyStartBreaks: boolean;
+  glassMl: number;
+  dailyGoalMl: number;
 }
 
 export const defaultWorkingRange: WorkingHoursRange = {
@@ -73,9 +75,9 @@ export const defaultSettings: Settings = {
   trayTextEnabled: true,
   trayTextMode: TrayTextMode.TimeToNextBreak,
   notificationType: NotificationType.Popup,
-  breakFrequencySeconds: 28 * 60,
-  breakLengthSeconds: 2 * 60,
-  postponeLengthSeconds: 3 * 60,
+  breakFrequencySeconds: 105 * 60, // 9h workday / 5 glasses
+  breakLengthSeconds: 30,
+  postponeLengthSeconds: 5 * 60,
   postponeLimit: 0,
   workingHoursEnabled: true,
   workingHoursMonday: {
@@ -109,18 +111,20 @@ export const defaultSettings: Settings = {
   idleResetEnabled: true,
   idleResetLengthSeconds: 5 * 60,
   idleResetNotification: false,
-  soundType: SoundType.Gong,
+  soundType: SoundType.Bloop,
   breakSoundVolume: 1,
-  breakTitle: "Time for a break.",
-  breakMessage: "Rest your eyes.\nStretch your legs.\nBreathe. Relax.",
-  backgroundColor: "#16a085",
+  breakTitle: "Time to drink 💧",
+  breakMessage: "Grab your glass and drink it up.",
+  backgroundColor: "#0284c7",
   textColor: "#ffffff",
   showBackdrop: true,
   backdropOpacity: 0.7,
   endBreakEnabled: true,
-  skipBreakEnabled: false,
+  skipBreakEnabled: true,
   postponeBreakEnabled: true,
   immediatelyStartBreaks: false,
+  glassMl: 400,
+  dailyGoalMl: 2000,
 };
 
 export interface DayConfig {

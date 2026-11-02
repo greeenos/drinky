@@ -3,6 +3,7 @@ export enum IpcChannel {
   AppInitializedSet = "APP_INITIALIZED_SET",
   AppInitializedGet = "APP_INITIALIZED_GET",
   BreakEnd = "BREAK_END",
+  DrinkStatusGet = "DRINK_STATUS_GET",
   BreakLengthGet = "BREAK_LENGTH_GET",
   BreakPostpone = "BREAK_POSTPONE",
   BreakStart = "BREAK_START",

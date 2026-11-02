@@ -54,6 +54,9 @@ process.once("loaded", () => {
     invokeBreakStart: () => {
       return ipcRenderer.invoke("BREAK_START");
     },
+    invokeGetDrinkStatus: () => {
+      return ipcRenderer.invoke("DRINK_STATUS_GET");
+    },
     invokeBreakEnd: () => {
       return ipcRenderer.invoke("BREAK_END");
     },

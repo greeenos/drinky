@@ -13,6 +13,11 @@ export default function Break() {
   const [timeSinceLastBreak, setTimeSinceLastBreak] = useState<number | null>(
     null,
   );
+  const [drinkStatus, setDrinkStatus] = useState<{
+    drankMl: number;
+    goalMl: number;
+    glassMl: number;
+  } | null>(null);
   const [ready, setReady] = useState(false);
   const [closing, setClosing] = useState(false);
   const [sharedBreakEndTime, setSharedBreakEndTime] = useState<number | null>(
@@ -21,13 +26,16 @@ export default function Break() {
 
   useEffect(() => {
     const init = async () => {
-      const [allowPostpone, settings, timeSince, startedFromTray] =
+      const [allowPostpone, settings, timeSince, startedFromTray, drinks] =
         await Promise.all([
           ipcRenderer.invokeGetAllowPostpone(),
           ipcRenderer.invokeGetSettings() as Promise<Settings>,
           ipcRenderer.invokeGetTimeSinceLastBreak(),
           ipcRenderer.invokeWasStartedFromTray(),
+          ipcRenderer.invokeGetDrinkStatus(),
         ]);
+
+      setDrinkStatus(drinks);
 
       setAllowPostpone(allowPostpone);
       setSettings(settings);
@@ -193,6 +201,7 @@ export default function Break() {
             textColor={settings.textColor}
             isClosing={closing}
             sharedBreakEndTime={sharedBreakEndTime}
+            drinkStatus={drinkStatus}
           />
         )}
       </motion.div>

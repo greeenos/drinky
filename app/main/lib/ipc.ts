@@ -12,6 +12,7 @@ import {
   wasStartedFromTray,
 } from "./breaks";
 import {
+  getDrankTodayMl,
   getSettings,
   setSettings,
   getAppInitialized,
@@ -140,6 +141,14 @@ ipcMain.handle(IpcChannel.WasStartedFromTrayGet, (): boolean => {
   log.info(IpcChannel.WasStartedFromTrayGet);
   return wasStartedFromTray();
 });
+
+ipcMain.handle(
+  IpcChannel.DrinkStatusGet,
+  (): { drankMl: number; goalMl: number; glassMl: number } => {
+    const { dailyGoalMl, glassMl } = getSettings();
+    return { drankMl: getDrankTodayMl(), goalMl: dailyGoalMl, glassMl };
+  },
+);
 
 ipcMain.handle(IpcChannel.AppInitializedGet, (): boolean => {
   log.info(IpcChannel.AppInitializedGet);

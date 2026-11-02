@@ -101,8 +101,8 @@ export function BreakNotification({
             style={{ color: textColor }}
           >
             {phase === "grace"
-              ? "Start your break when ready..."
-              : `Break starting in ${secondsRemaining}s...`}
+              ? "Time for a glass of water 💧"
+              : `Drink reminder in ${secondsRemaining}s...`}
           </h2>
           {timeSinceLastBreak !== null && (
             <p
@@ -129,7 +129,7 @@ export function BreakNotification({
                 borderColor: "rgba(255, 255, 255, 0.2)",
               }}
             >
-              Start
+              Drink
             </Button>
           </div>
           {postponeBreakEnabled && (

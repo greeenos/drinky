@@ -21,6 +21,7 @@ interface BreaksCardProps {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => void;
   onSwitchChange: (field: string, checked: boolean) => void;
+  onNumberChange: (field: keyof Settings, value: number) => void;
 }
 
 export default function BreaksCard({
@@ -29,16 +30,52 @@ export default function BreaksCard({
   onDateChange,
   onTextChange,
   onSwitchChange,
+  onNumberChange,
 }: BreaksCardProps) {
   return (
     <SettingsCard
-      title="Breaks"
+      title="Drinks"
       toggle={{
         checked: settingsDraft.breaksEnabled,
         onCheckedChange: (checked) => onSwitchChange("breaksEnabled", checked),
       }}
     >
       <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Glass size (ml)</Label>
+            <Input
+              type="number"
+              min={50}
+              step={50}
+              value={settingsDraft.glassMl}
+              onChange={(e) =>
+                onNumberChange("glassMl", Math.max(1, Number(e.target.value)))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Daily goal (ml)</Label>
+            <Input
+              type="number"
+              min={100}
+              step={100}
+              value={settingsDraft.dailyGoalMl}
+              onChange={(e) =>
+                onNumberChange(
+                  "dailyGoalMl",
+                  Math.max(1, Number(e.target.value)),
+                )
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Glasses / day</Label>
+            <div className="h-9 flex items-center text-sm font-medium">
+              {Math.ceil(settingsDraft.dailyGoalMl / settingsDraft.glassMl)}
+            </div>
+          </div>
+        </div>
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label className="text-sm font-medium">Type</Label>
@@ -52,7 +89,7 @@ export default function BreaksCard({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NotificationType.Popup}>
-                  Popup break
+                  Fullscreen popup
                 </SelectItem>
                 <SelectItem value={NotificationType.Notification}>
                   Simple notification
@@ -113,7 +150,7 @@ export default function BreaksCard({
             value={settingsDraft.breakMessage}
             onChange={onTextChange.bind(null, "breakMessage")}
             disabled={!settingsDraft.breaksEnabled}
-            placeholder="Enter your break message..."
+            placeholder="Enter your reminder message..."
           />
         </div>
       </div>

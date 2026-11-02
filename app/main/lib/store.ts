@@ -107,6 +107,7 @@ const store = new Store({
     appInitialized: false,
     settingsVersion: 0,
     disableEndTime: null,
+    drinkLog: null,
   },
 });
 
@@ -194,4 +195,22 @@ export function setDisableEndTime(endTime: number | null): void {
 
 export function getDisableEndTime(): number | null {
   return store.get("disableEndTime");
+}
+
+interface DrinkLog {
+  date: string;
+  ml: number;
+}
+
+function today(): string {
+  return new Date().toLocaleDateString("sv-SE"); // local YYYY-MM-DD
+}
+
+export function getDrankTodayMl(): number {
+  const drinkLog = store.get("drinkLog") as DrinkLog | null;
+  return drinkLog?.date === today() ? drinkLog.ml : 0;
+}
+
+export function addDrink(ml: number): void {
+  store.set("drinkLog", { date: today(), ml: getDrankTodayMl() + ml });
 }
