@@ -105,7 +105,9 @@ fn idle_secs() -> u64 {
 
 #[cfg(not(any(windows, target_os = "macos")))]
 fn idle_secs() -> u64 {
-    0
+    // ponytail: no idle API wired up on Linux, so never claim presence and
+    // phones keep getting pushes; read X11/Wayland idle time if it matters.
+    u64::MAX
 }
 
 // While you use this computer, tell the server every 30s; it then skips the
