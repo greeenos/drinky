@@ -42,6 +42,7 @@ export default function SettingsEl() {
   };
 
   const enabled = settingsDraft.breaksEnabled;
+  const synced = settings.serverUrl.trim() !== "";
 
   return (
     <div className="h-screen w-full flex flex-col bg-background">
@@ -51,70 +52,100 @@ export default function SettingsEl() {
       </nav>
       <div className="flex-1 overflow-auto p-6 min-h-0 space-y-6">
         <SettingsCard
-          title="Drinks"
-          toggle={{
-            checked: enabled,
-            onCheckedChange: (checked) => set("breaksEnabled", checked),
-          }}
+          title="Sync server"
+          helperText="Optional. With a server, every device shows the reminder at the same time and shares today's progress."
         >
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Glass size (ml)</Label>
-              <Input
-                type="number"
-                min={50}
-                step={50}
-                value={settingsDraft.glassMl}
-                onChange={(e) =>
-                  set("glassMl", Math.max(1, Number(e.target.value)))
-                }
-                disabled={!enabled}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Daily goal (ml)</Label>
-              <Input
-                type="number"
-                min={100}
-                step={100}
-                value={settingsDraft.dailyGoalMl}
-                onChange={(e) =>
-                  set("dailyGoalMl", Math.max(1, Number(e.target.value)))
-                }
-                disabled={!enabled}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Remind every</Label>
-              <TimeInput
-                value={settingsDraft.breakFrequencySeconds}
-                onChange={(seconds) =>
-                  set("breakFrequencySeconds", Math.max(60, seconds))
-                }
-                disabled={!enabled}
-              />
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground mt-3">
-            {Math.ceil(settingsDraft.dailyGoalMl / settingsDraft.glassMl)}{" "}
-            glasses a day
-          </p>
+          <Input
+            placeholder="https://your-server:10453"
+            value={settingsDraft.serverUrl}
+            onChange={(e) => set("serverUrl", e.target.value)}
+          />
+          {synced && (
+            <p className="text-sm text-muted-foreground mt-3">
+              Glass size, goal and schedule are managed on the{" "}
+              <a
+                href={settings.serverUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary underline"
+              >
+                server page
+              </a>
+              .
+            </p>
+          )}
         </SettingsCard>
 
-        <SettingsCard
-          title="Working hours"
-          helperText="Only remind during these hours."
-          toggle={{
-            checked: settingsDraft.workingHoursEnabled,
-            onCheckedChange: (checked) => set("workingHoursEnabled", checked),
-            disabled: !enabled,
-          }}
-        >
-          <WorkingHoursSettings
-            settingsDraft={settingsDraft}
-            setSettingsDraft={setSettingsDraft}
-          />
-        </SettingsCard>
+        {!synced && (
+          <>
+            <SettingsCard
+              title="Drinks"
+              toggle={{
+                checked: enabled,
+                onCheckedChange: (checked) => set("breaksEnabled", checked),
+              }}
+            >
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Glass size (ml)</Label>
+                  <Input
+                    type="number"
+                    min={50}
+                    step={50}
+                    value={settingsDraft.glassMl}
+                    onChange={(e) =>
+                      set("glassMl", Math.max(1, Number(e.target.value)))
+                    }
+                    disabled={!enabled}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Daily goal (ml)</Label>
+                  <Input
+                    type="number"
+                    min={100}
+                    step={100}
+                    value={settingsDraft.dailyGoalMl}
+                    onChange={(e) =>
+                      set("dailyGoalMl", Math.max(1, Number(e.target.value)))
+                    }
+                    disabled={!enabled}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Remind every</Label>
+                  <TimeInput
+                    value={settingsDraft.breakFrequencySeconds}
+                    onChange={(seconds) =>
+                      set("breakFrequencySeconds", Math.max(60, seconds))
+                    }
+                    disabled={!enabled}
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-3">
+                {Math.ceil(settingsDraft.dailyGoalMl / settingsDraft.glassMl)}{" "}
+                glasses a day
+              </p>
+            </SettingsCard>
+
+            <SettingsCard
+              title="Working hours"
+              helperText="Only remind during these hours."
+              toggle={{
+                checked: settingsDraft.workingHoursEnabled,
+                onCheckedChange: (checked) =>
+                  set("workingHoursEnabled", checked),
+                disabled: !enabled,
+              }}
+            >
+              <WorkingHoursSettings
+                settingsDraft={settingsDraft}
+                setSettingsDraft={setSettingsDraft}
+              />
+            </SettingsCard>
+          </>
+        )}
       </div>
       <WelcomeModal
         open={showWelcomeModal}

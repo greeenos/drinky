@@ -13,7 +13,14 @@ import { sendIpc } from "./ipc";
 import { showNotification } from "./notifications";
 import { addDrink, getDrankTodayMl, getSettings } from "./store";
 import { buildTray } from "./tray";
-import { createBreakWindows } from "./windows";
+import {
+  connectServer,
+  getServerState,
+  postAction,
+  ServerState,
+  serverUrl,
+} from "./server-sync";
+import { closeBreakWindows, createBreakWindows } from "./windows";
 
 // Helper function to strip HTML tags from text
 function stripHtml(html: string): string {
@@ -39,7 +46,28 @@ let lastCompletedBreakTime: Date | null = new Date();
 let currentBreakStartTime: Date | null = null;
 
 export function getBreakTime(): BreakTime {
+  if (serverUrl()) {
+    const nextAt = getServerState()?.nextAt;
+    return nextAt ? moment(nextAt) : null;
+  }
   return breakTime;
+}
+
+export function getDrinkStatus(): {
+  drankMl: number;
+  goalMl: number;
+  glassMl: number;
+} {
+  const server = getServerState();
+  if (serverUrl() && server) {
+    return {
+      drankMl: server.drankMl,
+      goalMl: server.settings.dailyGoalMl,
+      glassMl: server.settings.glassMl,
+    };
+  }
+  const { dailyGoalMl, glassMl } = getSettings();
+  return { drankMl: getDrankTodayMl(), goalMl: dailyGoalMl, glassMl };
 }
 
 export function getBreakLengthSeconds(): number {
@@ -70,7 +98,8 @@ export function resetTimeSinceLastBreak(context: string): void {
 }
 
 function markBreakCompleted(context: string): void {
-  addDrink(getSettings().glassMl);
+  if (serverUrl()) postAction("drink");
+  else addDrink(getSettings().glassMl);
   resetTimeSinceLastBreak(context);
   currentBreakStartTime = null;
 }
@@ -191,6 +220,13 @@ export function getAllowPostpone(): boolean {
 export function postponeBreak(action = "snoozed"): void {
   postponedCount++;
   havingBreak = false;
+  currentBreakStartTime = null; // closing the window must not count a glass
+
+  if (serverUrl()) {
+    postAction(action === "skipped" ? "skip" : "snooze");
+    buildTray();
+    return;
+  }
   log.info(`Break ${action} [count=${postponedCount}]`);
 
   if (action === "skipped") {
@@ -310,12 +346,27 @@ export function checkIdle(): boolean {
 }
 
 export function isDailyGoalReached(): boolean {
-  return getDrankTodayMl() >= getSettings().dailyGoalMl;
+  const { drankMl, goalMl } = getDrinkStatus();
+  return drankMl >= goalMl;
 }
 
 export function logDrinkNow(): void {
   markBreakCompleted("Drink logged from tray");
-  scheduleNextBreak();
+  if (!serverUrl()) scheduleNextBreak();
+}
+
+function handleServerState(s: ServerState): void {
+  if (s.active && !havingBreak) {
+    startedFromTray = true; // skip the pre-break countdown, go fullscreen
+    havingBreak = true;
+    startBreakTracking();
+    createBreakWindows();
+  } else if (!s.active && havingBreak) {
+    // Dismissed on another device: close without counting a second glass.
+    currentBreakStartTime = null;
+    closeBreakWindows();
+  }
+  buildTray();
 }
 
 export function isHavingBreak(): boolean {
@@ -345,6 +396,10 @@ function checkBreak(): void {
 }
 
 export function startBreakNow(): void {
+  if (serverUrl()) {
+    postAction("remind"); // the server opens the overlay on every device
+    return;
+  }
   startedFromTray = true;
   breakTime = moment();
   doBreak();
@@ -437,12 +492,18 @@ export function initBreaks(systemIdleMonitor?: SystemIdleMonitor): void {
 
   const settings: Settings = getSettings();
 
-  if (settings.breaksEnabled) {
-    scheduleNextBreak();
-  }
-
   if (tickInterval) {
     clearInterval(tickInterval);
+  }
+
+  connectServer(handleServerState);
+  if (serverUrl()) {
+    breakTime = null; // the server owns the schedule
+    return;
+  }
+
+  if (settings.breaksEnabled) {
+    scheduleNextBreak();
   }
 
   tickInterval = setInterval(tick, 1000);

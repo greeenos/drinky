@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen } from "electron";
+import { app, BrowserWindow, screen, shell } from "electron";
 import log from "electron-log";
 import path from "path";
 import { endPopupBreak } from "./breaks";
@@ -60,6 +60,12 @@ export function createSettingsWindow(): void {
   });
 
   settingsWindow.loadURL(getBrowserWindowUrl("settings"));
+
+  // Links (e.g. the server web page) open in the system browser.
+  settingsWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
 
   // Force enable devtools keyboard shortcuts
   settingsWindow.webContents.on("before-input-event", (event, input) => {

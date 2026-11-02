@@ -35,6 +35,10 @@ module.exports = [
         setInterval: "readonly",
         clearTimeout: "readonly",
         clearInterval: "readonly",
+        fetch: "readonly",
+        AbortController: "readonly",
+        AbortSignal: "readonly",
+        TextDecoder: "readonly",
         // Node.js types
         NodeJS: "readonly",
         // Electron globals
@@ -117,6 +121,18 @@ module.exports = [
       react: {
         version: "detect",
         runtime: "automatic",
+      },
+    },
+  },
+  {
+    files: ["server/**/*.mjs"],
+    languageOptions: {
+      sourceType: "module",
+      globals: {
+        process: "readonly",
+        console: "readonly",
+        URL: "readonly",
+        setInterval: "readonly",
       },
     },
   },

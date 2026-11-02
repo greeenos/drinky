@@ -8,6 +8,7 @@ import {
   checkIdle,
   checkInWorkingHours,
   getBreakTime,
+  getDrinkStatus,
   getTimeSinceLastCompletedBreak,
   isDailyGoalReached,
   isHavingBreak,
@@ -16,7 +17,6 @@ import {
 } from "./breaks";
 import {
   getDisableEndTime,
-  getDrankTodayMl,
   getSettings,
   setDisableEndTime,
   setSettings,
@@ -212,8 +212,8 @@ export function buildTray(): void {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: `Today: ${(getDrankTodayMl() / 1000).toFixed(1)} / ${(
-        settings.dailyGoalMl / 1000
+      label: `Today: ${(getDrinkStatus().drankMl / 1000).toFixed(1)} / ${(
+        getDrinkStatus().goalMl / 1000
       ).toFixed(1)} L${isDailyGoalReached() ? " — goal reached 🎉" : ""}`,
       enabled: false,
     },
@@ -274,7 +274,7 @@ export function buildTray(): void {
       visible: breaksEnabled,
     },
     {
-      label: `I drank a glass (${settings.glassMl} ml)`,
+      label: `I drank a glass (${getDrinkStatus().glassMl} ml)`,
       click: () => {
         log.info("Log drink selected");
         logDrinkNow();

@@ -20,9 +20,6 @@ export default function Break() {
   } | null>(null);
   const [ready, setReady] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [sharedBreakEndTime, setSharedBreakEndTime] = useState<number | null>(
-    null,
-  );
 
   useEffect(() => {
     const init = async () => {
@@ -50,8 +47,7 @@ export default function Break() {
     };
 
     // Listen for break start broadcasts from other windows
-    const handleBreakStart = (breakEndTime: number) => {
-      setSharedBreakEndTime(breakEndTime);
+    const handleBreakStart = () => {
       setCountingDown(false);
     };
 
@@ -193,14 +189,10 @@ export default function Break() {
       >
         {ready && (
           <BreakProgress
-            breakMessage={settings.breakMessage}
-            breakTitle={settings.breakTitle}
-            endBreakEnabled={settings.endBreakEnabled}
-            onEndBreak={handleEndBreak}
+            onDone={handleEndBreak}
+            onSnooze={handlePostponeBreak}
+            onSkip={handleSkipBreak}
             settings={settings}
-            textColor={settings.textColor}
-            isClosing={closing}
-            sharedBreakEndTime={sharedBreakEndTime}
             drinkStatus={drinkStatus}
           />
         )}

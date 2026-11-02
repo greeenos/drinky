@@ -62,6 +62,7 @@ export interface Settings {
   immediatelyStartBreaks: boolean;
   glassMl: number;
   dailyGoalMl: number;
+  serverUrl: string;
 }
 
 export const defaultWorkingRange: WorkingHoursRange = {
@@ -125,6 +126,7 @@ export const defaultSettings: Settings = {
   immediatelyStartBreaks: false,
   glassMl: 400,
   dailyGoalMl: 2000,
+  serverUrl: "",
 };
 
 export interface DayConfig {

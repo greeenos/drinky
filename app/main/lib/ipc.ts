@@ -6,13 +6,13 @@ import {
   completeBreakTracking,
   getAllowPostpone,
   getBreakLengthSeconds,
+  getDrinkStatus,
   getTimeSinceLastBreak,
   postponeBreak,
   startBreakTracking,
   wasStartedFromTray,
 } from "./breaks";
 import {
-  getDrankTodayMl,
   getSettings,
   setSettings,
   getAppInitialized,
@@ -142,13 +142,7 @@ ipcMain.handle(IpcChannel.WasStartedFromTrayGet, (): boolean => {
   return wasStartedFromTray();
 });
 
-ipcMain.handle(
-  IpcChannel.DrinkStatusGet,
-  (): { drankMl: number; goalMl: number; glassMl: number } => {
-    const { dailyGoalMl, glassMl } = getSettings();
-    return { drankMl: getDrankTodayMl(), goalMl: dailyGoalMl, glassMl };
-  },
-);
+ipcMain.handle(IpcChannel.DrinkStatusGet, getDrinkStatus);
 
 ipcMain.handle(IpcChannel.AppInitializedGet, (): boolean => {
   log.info(IpcChannel.AppInitializedGet);
