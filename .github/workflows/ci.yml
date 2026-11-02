@@ -16,3 +16,13 @@ jobs:
       - run: node --test server/server.test.mjs server/push.test.mjs
         env:
           TZ: Europe/Prague
+
+  desktop:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: cargo check --locked --manifest-path src-tauri/Cargo.toml

@@ -6,7 +6,7 @@ use std::io::{BufRead, BufReader};
 use std::{fs, path::PathBuf, thread, time::Duration};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, Wry};
+use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 fn config_file(app: &AppHandle) -> PathBuf {
@@ -62,6 +62,7 @@ fn post(base: String, action: &'static str) {
 
 fn open_window(app: &AppHandle, label: &str, url: WebviewUrl, w: f64, h: f64) {
     if let Some(win) = app.get_webview_window(label) {
+        let _ = win.show();
         let _ = win.set_focus();
         return;
     }
@@ -75,20 +76,25 @@ fn show_overlay(app: &AppHandle, base: &str) {
     let Ok(url) = format!("{base}/?overlay=1").parse::<tauri::Url>() else { return };
     for (i, monitor) in app.available_monitors().unwrap_or_default().iter().enumerate() {
         let label = format!("overlay{i}");
-        if app.get_webview_window(&label).is_some() {
-            continue;
-        }
-        let Ok(win) = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url.clone()))
-            .title("Drinky")
-            .decorations(false)
-            .always_on_top(true)
-            .skip_taskbar(true)
-            .visible_on_all_workspaces(true)
-            .resizable(false)
-            .visible(false)
-            .build()
-        else {
-            continue;
+        // Reuse the overlay hidden after the last reminder (see hide_overlay).
+        let win = match app.get_webview_window(&label) {
+            Some(win) => win,
+            None => {
+                let Ok(win) =
+                    WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url.clone()))
+                        .title("Drinky")
+                        .decorations(false)
+                        .always_on_top(true)
+                        .skip_taskbar(true)
+                        .visible_on_all_workspaces(true)
+                        .resizable(false)
+                        .visible(false)
+                        .build()
+                else {
+                    continue;
+                };
+                win
+            }
         };
         let _ = win.set_position(*monitor.position());
         // Windows: borderless fullscreen on that monitor (a raw physical
@@ -106,10 +112,13 @@ fn show_overlay(app: &AppHandle, base: &str) {
     }
 }
 
+// Hide, never close: utilities like Swift Quit send the app a Quit Apple
+// Event as soon as its last window closes, which killed Drinky after every
+// reminder. A hidden window keeps the app alive (and re-shows instantly).
 fn hide_overlay(app: &AppHandle) {
     for (label, win) in app.webview_windows() {
         if label.starts_with("overlay") {
-            let _ = win.close();
+            let _ = win.hide();
         }
     }
 }
@@ -150,6 +159,14 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .invoke_handler(tauri::generate_handler![get_server, load_settings, finish_setup])
+        // Same reason as hide_overlay: closing "Open Drinky" or "Setup…" hides
+        // the window, so the tray app never ends up with zero windows.
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
