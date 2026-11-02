@@ -34,3 +34,4 @@ jobs:
           releaseName: Drinky ${{ github.ref_name }}
           releaseDraft: false
           args: ${{ matrix.args }}
+          uploadPlainBinary: true
