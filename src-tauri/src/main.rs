@@ -60,6 +60,65 @@ fn post(base: String, action: &'static str) {
     });
 }
 
+fn post_ml(base: String, ml: u32) {
+    thread::spawn(move || {
+        let _ = ureq::post(&format!("{base}/api/drink"))
+            .set("content-type", "application/json")
+            .send_string(&format!("{{\"ml\":{ml}}}"));
+    });
+}
+
+// Seconds since the last keyboard/mouse input, from the OS.
+#[cfg(windows)]
+fn idle_secs() -> u64 {
+    #[repr(C)]
+    struct LastInputInfo {
+        cb_size: u32,
+        dw_time: u32,
+    }
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetLastInputInfo(info: *mut LastInputInfo) -> i32;
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetTickCount() -> u32;
+    }
+    let mut info = LastInputInfo { cb_size: 8, dw_time: 0 };
+    unsafe {
+        if GetLastInputInfo(&mut info) == 0 {
+            return 0;
+        }
+        (GetTickCount().wrapping_sub(info.dw_time) / 1000) as u64
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn idle_secs() -> u64 {
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGEventSourceSecondsSinceLastEventType(state: i32, event_type: u32) -> f64;
+    }
+    // combined session state, any input event
+    unsafe { CGEventSourceSecondsSinceLastEventType(0, u32::MAX) as u64 }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn idle_secs() -> u64 {
+    0
+}
+
+// While you use this computer, tell the server every 30s; it then skips the
+// phone push because the overlay here is enough.
+fn report_presence(base: String) {
+    loop {
+        if idle_secs() < 120 {
+            let _ = ureq::post(&format!("{base}/api/presence")).call();
+        }
+        thread::sleep(Duration::from_secs(30));
+    }
+}
+
 fn open_window(app: &AppHandle, label: &str, url: WebviewUrl, w: f64, h: f64) {
     if let Some(win) = app.get_webview_window(label) {
         let _ = win.set_focus();
@@ -177,6 +236,8 @@ fn main() {
                     &today,
                     &PredefinedMenuItem::separator(app)?,
                     &MenuItem::with_id(app, "drink", "I took a sip", true, none)?,
+                    &MenuItem::with_id(app, "glass", "+250 ml glass", true, none)?,
+                    &MenuItem::with_id(app, "bottle", "+500 ml bottle", true, none)?,
                     &MenuItem::with_id(app, "remind", "Remind everywhere now", true, none)?,
                     &MenuItem::with_id(app, "open", "Open Drinky", true, none)?,
                     &PredefinedMenuItem::separator(app)?,
@@ -194,6 +255,8 @@ fn main() {
                 .show_menu_on_left_click(true)
                 .on_menu_event(move |app, event| match event.id().as_ref() {
                     "drink" => post(server_url(app), "drink"),
+                    "glass" => post_ml(server_url(app), 250),
+                    "bottle" => post_ml(server_url(app), 500),
                     "remind" => post(server_url(app), "remind"),
                     "open" => {
                         if let Ok(url) = format!("{}/?app", server_url(app)).parse() {
@@ -216,6 +279,8 @@ fn main() {
                 let _ = today.set_text("No server set");
                 open_window(&handle, "settings", WebviewUrl::default(), 460.0, 600.0);
             } else {
+                let presence_base = base.clone();
+                thread::spawn(move || report_presence(presence_base));
                 thread::spawn(move || listen(handle, base, today));
             }
             Ok(())

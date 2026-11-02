@@ -181,6 +181,33 @@
         background: rgba(255, 255, 255, 0.15);
         color: #fff;
       }
+      .week {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        height: 110px;
+        margin-top: 12px;
+        position: relative;
+      }
+      .week .day {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        height: 100%;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .week .col {
+        width: 100%;
+        border-radius: 6px 6px 2px 2px;
+        background: var(--line);
+        margin-bottom: 4px;
+      }
+      .week .col.hit {
+        background: var(--blue);
+      }
       #offline {
         display: none;
         color: #dc2626;
@@ -199,12 +226,20 @@
       </section>
       <button class="primary" id="drink">I took a sip</button>
       <div class="row">
+        <button data-ml="250">+250 ml glass</button>
+        <button data-ml="500">+500 ml bottle</button>
+      </div>
+      <div class="row">
         <button id="remind">Remind everywhere now</button>
       </div>
       <button id="notify" hidden>
         🔔 Turn on notifications on this device
       </button>
       <div class="muted" id="notifyHint"></div>
+      <section class="card">
+        <strong>Last 7 days</strong>
+        <div class="week" id="week"></div>
+      </section>
       <form class="card" id="settings">
         <div
           class="row"
@@ -270,6 +305,25 @@
         (d, i) => `<label><input type="checkbox" value="${i}" />${d}</label>`,
       ).join("");
 
+      // Bars for the last 7 days; blue = goal reached (goal = today's goal).
+      function renderWeek(st) {
+        const goal = st.settings.dailyGoalMl;
+        const today = new Date(`${st.date}T12:00:00`);
+        const days = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(today - (6 - i) * 86_400_000);
+          const key = d.toLocaleDateString("sv-SE");
+          const ml = i === 6 ? st.drankMl : (st.history?.[key] ?? 0);
+          return { ml, label: i === 6 ? "Today" : DAYS[d.getDay()] };
+        });
+        const max = Math.max(goal, ...days.map((d) => d.ml));
+        $("week").innerHTML = days
+          .map(
+            (d) =>
+              `<div class="day" title="${d.ml} ml"><div class="col ${d.ml >= goal ? "hit" : ""}" style="height:${Math.max(3, (80 * d.ml) / max)}%"></div>${d.label}</div>`,
+          )
+          .join("");
+      }
+
       // Settings live on the server; refresh the form whenever another
       // device changes them, unless you're editing it right now.
       let shownSettings = "";
@@ -286,6 +340,7 @@
               ? `Next reminder at ${new Date(st.nextAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
               : "No reminders right now (outside hours or off)";
         $("drink").textContent = `I took a sip (+${s.sipMl} ml)`;
+        renderWeek(st);
         $("ovGlass").textContent = `~${s.sipMl} ml`;
         $("ovProgress").textContent =
           `${L(st.drankMl)} / ${L(s.dailyGoalMl)} L today`;
@@ -353,6 +408,8 @@
         setupPush(true).catch((e) => ($("notifyHint").textContent = String(e)));
 
       $("drink").onclick = () => post("drink");
+      for (const b of document.querySelectorAll("[data-ml]"))
+        b.onclick = () => post("drink", { ml: Number(b.dataset.ml) });
       $("remind").onclick = () => post("remind");
       for (const b of document.querySelectorAll("[data-act]"))
         b.onclick = () => post(b.dataset.act);

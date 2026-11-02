@@ -25,6 +25,7 @@ export const defaultState = () => ({
   },
   date: "",
   drankMl: 0,
+  history: {}, // date -> ml, last 30 finished days
   nextAt: null, // epoch ms of the next reminder
   active: false, // a reminder is showing on every device
 });
@@ -55,6 +56,10 @@ export function nextDelay(st, now, rand = Math.random) {
 export function tick(st, now, rand = Math.random) {
   const s = st.settings;
   if (st.date !== localDate(now)) {
+    if (st.date) {
+      const days = Object.entries({ ...st.history, [st.date]: st.drankMl });
+      st.history = Object.fromEntries(days.sort().slice(-30));
+    }
     st.date = localDate(now);
     st.drankMl = 0;
   }
@@ -87,8 +92,8 @@ export function cleanSettings(s) {
 export function act(st, action, now, body = {}, rand = Math.random) {
   const s = st.settings;
   switch (action) {
-    case "drink":
-      st.drankMl += s.sipMl;
+    case "drink": // a sip by default; {ml} logs a glass or bottle
+      st.drankMl += body.ml === undefined ? s.sipMl : int(body.ml, 1, 3000);
       Object.assign(st, {
         active: false,
         nextAt: now + nextDelay(st, now, rand),
@@ -143,6 +148,11 @@ function serve() {
   const saveSubs = () =>
     fs.writeFileSync(subsFile, JSON.stringify([...subs.values()]));
 
+  // Desktop apps report while you're using the computer. Then the overlay
+  // there is enough and phones stay quiet; away from it, phones get a push.
+  let desktopActiveAt = 0;
+  const atDesktop = () => Date.now() - desktopActiveAt < 90_000;
+
   const notifyAll = () => {
     const L = (ml) => (ml / 1000).toFixed(2);
     const payload = JSON.stringify({
@@ -167,7 +177,7 @@ function serve() {
     fs.renameSync(`${DATA}.tmp`, DATA);
     const msg = `data: ${JSON.stringify(st)}\n\n`;
     for (const res of clients) res.write(msg);
-    if (st.active && !wasActive) notifyAll();
+    if (st.active && !wasActive && !atDesktop()) notifyAll();
     wasActive = st.active;
   };
 
@@ -236,6 +246,10 @@ function serve() {
           const action = url.pathname.slice(5);
           try {
             const body = raw ? JSON.parse(raw) : {};
+            if (action === "presence") {
+              desktopActiveAt = Date.now();
+              return json(200, { ok: true });
+            }
             if (action === "subscribe" || action === "unsubscribe") {
               const { endpoint, keys } = body;
               if (!/^https:\/\//.test(endpoint))

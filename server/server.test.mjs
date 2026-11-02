@@ -52,6 +52,22 @@ test("schedules, reminds, counts sips and stops at the goal", () => {
   assert.equal(st.drankMl, 0, "new day resets progress");
 });
 
+test("logs a glass or bottle and keeps 30 days of history", () => {
+  const st = defaultState();
+  tick(st, at("09:00"), mid);
+  act(st, "drink", at("10:00"), { ml: 250 }, mid);
+  act(st, "drink", at("11:00"), {}, mid);
+  assert.equal(st.drankMl, 300);
+  assert.throws(() => act(st, "drink", at("11:00"), { ml: 0 }));
+
+  tick(st, at("09:00") + 86_400_000, mid);
+  assert.deepEqual(st.history, { "2026-11-02": 300 });
+  assert.equal(st.drankMl, 0);
+
+  for (let d = 2; d <= 40; d++) tick(st, at("09:00") + d * 86_400_000, mid);
+  assert.equal(Object.keys(st.history).length, 30);
+});
+
 test("rejects bad settings", () => {
   const st = defaultState();
   assert.throws(() => act(st, "settings", at("09:00"), { sipMl: -1 }));
