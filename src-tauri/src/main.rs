@@ -23,11 +23,34 @@ fn get_server(app: AppHandle) -> String {
     server_url(&app)
 }
 
+fn clean(url: &str) -> String {
+    url.trim().trim_end_matches('/').to_string()
+}
+
+// Onboarding: read the server's current settings (another device may have
+// set it up already).
 #[tauri::command]
-fn set_server(app: AppHandle, url: String) -> Result<(), String> {
+fn load_settings(url: String) -> Result<serde_json::Value, String> {
+    let body = ureq::get(&format!("{}/api/state", clean(&url)))
+        .call()
+        .map_err(|e| format!("Can't reach the server: {e}"))?
+        .into_string()
+        .map_err(|e| e.to_string())?;
+    let state: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+    Ok(state["settings"].clone())
+}
+
+// Onboarding: save settings on the server, remember it, restart to connect.
+#[tauri::command]
+fn finish_setup(app: AppHandle, url: String, settings: serde_json::Value) -> Result<(), String> {
+    let url = clean(&url);
+    ureq::post(&format!("{url}/api/settings"))
+        .set("content-type", "application/json")
+        .send_string(&settings.to_string())
+        .map_err(|e| format!("Server rejected the settings: {e}"))?;
     let path = config_file(&app);
     fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
-    fs::write(path, url.trim()).map_err(|e| e.to_string())?;
+    fs::write(path, &url).map_err(|e| e.to_string())?;
     app.restart()
 }
 
@@ -126,7 +149,7 @@ fn listen(app: AppHandle, base: String, today: MenuItem<Wry>) {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
-        .invoke_handler(tauri::generate_handler![get_server, set_server])
+        .invoke_handler(tauri::generate_handler![get_server, load_settings, finish_setup])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -153,11 +176,11 @@ fn main() {
                 &[
                     &today,
                     &PredefinedMenuItem::separator(app)?,
-                    &MenuItem::with_id(app, "drink", "I drank a glass", true, none)?,
+                    &MenuItem::with_id(app, "drink", "I took a sip", true, none)?,
                     &MenuItem::with_id(app, "remind", "Remind everywhere now", true, none)?,
                     &MenuItem::with_id(app, "open", "Open Drinky", true, none)?,
                     &PredefinedMenuItem::separator(app)?,
-                    &MenuItem::with_id(app, "server", "Server…", true, none)?,
+                    &MenuItem::with_id(app, "server", "Setup…", true, none)?,
                     &login,
                     &MenuItem::with_id(app, "quit", "Quit", true, none)?,
                 ],
@@ -177,7 +200,7 @@ fn main() {
                             open_window(app, "main", WebviewUrl::External(url), 480.0, 760.0);
                         }
                     }
-                    "server" => open_window(app, "settings", WebviewUrl::default(), 420.0, 260.0),
+                    "server" => open_window(app, "settings", WebviewUrl::default(), 460.0, 600.0),
                     "login" => {
                         let auto = app.autolaunch();
                         let on = auto.is_enabled().unwrap_or(false);
@@ -191,7 +214,7 @@ fn main() {
 
             if base.is_empty() {
                 let _ = today.set_text("No server set");
-                open_window(&handle, "settings", WebviewUrl::default(), 420.0, 260.0);
+                open_window(&handle, "settings", WebviewUrl::default(), 460.0, 600.0);
             } else {
                 thread::spawn(move || listen(handle, base, today));
             }

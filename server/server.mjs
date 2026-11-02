@@ -5,19 +5,20 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadVapid, sendPush } from "./push.mjs";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const DATA = process.env.DATA_FILE ?? path.join(DIR, "data", "state.json");
 const PORT = Number(process.env.PORT ?? 8196);
 const ALLOW_LOGIN = process.env.ALLOW_LOGIN; // e.g. greeenos@github
 const SNOOZE_MS = 5 * 60_000;
+const MIN_GAP_MS = 5 * 60_000;
 
 export const defaultState = () => ({
   settings: {
     enabled: true,
-    glassMl: 400,
+    sipMl: 50, // one reminder = one sip
     dailyGoalMl: 2000,
-    intervalMin: 105,
     startMin: 9 * 60,
     endMin: 18 * 60,
     days: [1, 2, 3, 4, 5], // 0 = Sunday
@@ -36,8 +37,22 @@ function inHours(s, now) {
   return s.days.includes(d.getDay()) && min >= s.startMin && min < s.endMin;
 }
 
+// Random gap to the next reminder: spread the sips still needed over the rest
+// of the working day, then jitter ±50% so reminders don't feel mechanical.
+export function nextDelay(st, now, rand = Math.random) {
+  const s = st.settings;
+  const sipsLeft = Math.max(
+    1,
+    Math.ceil((s.dailyGoalMl - st.drankMl) / s.sipMl),
+  );
+  const d = new Date(now);
+  const minLeft = s.endMin - (d.getHours() * 60 + d.getMinutes());
+  const avg = Math.max(MIN_GAP_MS, (minLeft * 60_000) / (sipsLeft + 1));
+  return Math.round(avg * (0.5 + rand()));
+}
+
 // Advance the schedule to `now`. Mutates st.
-export function tick(st, now) {
+export function tick(st, now, rand = Math.random) {
   const s = st.settings;
   if (st.date !== localDate(now)) {
     st.date = localDate(now);
@@ -46,7 +61,7 @@ export function tick(st, now) {
   const done = !s.enabled || st.drankMl >= s.dailyGoalMl;
   if (done) st.active = false;
   if (done || !inHours(s, now)) st.nextAt = null;
-  else if (st.nextAt === null) st.nextAt = now + s.intervalMin * 60_000;
+  else if (st.nextAt === null) st.nextAt = now + nextDelay(st, now, rand);
   else if (!st.active && now >= st.nextAt) st.active = true;
 }
 
@@ -60,9 +75,8 @@ export function cleanSettings(s) {
   if (!Array.isArray(s.days)) throw new Error("bad days");
   return {
     enabled: Boolean(s.enabled),
-    glassMl: int(s.glassMl, 1, 5000),
+    sipMl: int(s.sipMl, 1, 1000),
     dailyGoalMl: int(s.dailyGoalMl, 1, 20000),
-    intervalMin: int(s.intervalMin, 1, 1440),
     startMin: int(s.startMin, 0, 1440),
     endMin: int(s.endMin, 0, 1440),
     days: [...new Set(s.days.map((d) => int(d, 0, 6)))].sort(),
@@ -70,16 +84,21 @@ export function cleanSettings(s) {
 }
 
 // Apply a user action. Returns false for unknown actions; throws on bad input.
-export function act(st, action, now, body = {}) {
+export function act(st, action, now, body = {}, rand = Math.random) {
   const s = st.settings;
-  const next = now + s.intervalMin * 60_000;
   switch (action) {
     case "drink":
-      st.drankMl += s.glassMl;
-      Object.assign(st, { active: false, nextAt: next });
+      st.drankMl += s.sipMl;
+      Object.assign(st, {
+        active: false,
+        nextAt: now + nextDelay(st, now, rand),
+      });
       break;
     case "skip":
-      Object.assign(st, { active: false, nextAt: next });
+      Object.assign(st, {
+        active: false,
+        nextAt: now + nextDelay(st, now, rand),
+      });
       break;
     case "snooze":
       Object.assign(st, { active: false, nextAt: now + SNOOZE_MS });
@@ -94,25 +113,62 @@ export function act(st, action, now, body = {}) {
     default:
       return false;
   }
-  tick(st, now);
+  tick(st, now, rand);
   return true;
 }
 
 function serve() {
   let st = defaultState();
   try {
-    st = { ...st, ...JSON.parse(fs.readFileSync(DATA, "utf8")) };
+    const saved = JSON.parse(fs.readFileSync(DATA, "utf8"));
+    st = { ...st, ...saved, settings: { ...st.settings, ...saved.settings } };
+    st.settings = cleanSettings(st.settings); // drop fields of older versions
   } catch {
     // first run
   }
   const clients = new Set();
 
+  // Web Push subscriptions (PWA on phones), keyed by endpoint.
+  const dataDir = path.dirname(DATA);
+  fs.mkdirSync(dataDir, { recursive: true });
+  const vapid = loadVapid(path.join(dataDir, "vapid.json"));
+  const subsFile = path.join(dataDir, "subs.json");
+  const subs = new Map();
+  try {
+    for (const sub of JSON.parse(fs.readFileSync(subsFile, "utf8")))
+      subs.set(sub.endpoint, sub);
+  } catch {
+    // no subscriptions yet
+  }
+  const saveSubs = () =>
+    fs.writeFileSync(subsFile, JSON.stringify([...subs.values()]));
+
+  const notifyAll = () => {
+    const L = (ml) => (ml / 1000).toFixed(2);
+    const payload = JSON.stringify({
+      title: "Take a sip 💧",
+      body: `~${st.settings.sipMl} ml · ${L(st.drankMl)} / ${L(st.settings.dailyGoalMl)} L today`,
+    });
+    for (const sub of subs.values()) {
+      sendPush(vapid, sub, payload)
+        .then((status) => {
+          if (status === 404 || status === 410) {
+            subs.delete(sub.endpoint); // unsubscribed or expired
+            saveSubs();
+          } else if (status >= 400) console.warn(`push ${status}`);
+        })
+        .catch((e) => console.warn(`push failed: ${e.message}`));
+    }
+  };
+
+  let wasActive = st.active;
   const publish = () => {
-    fs.mkdirSync(path.dirname(DATA), { recursive: true });
     fs.writeFileSync(`${DATA}.tmp`, JSON.stringify(st));
     fs.renameSync(`${DATA}.tmp`, DATA);
     const msg = `data: ${JSON.stringify(st)}\n\n`;
     for (const res of clients) res.write(msg);
+    if (st.active && !wasActive) notifyAll();
+    wasActive = st.active;
   };
 
   setInterval(() => {
@@ -134,6 +190,7 @@ function serve() {
     "/": page("index.html", "text/html; charset=utf-8"),
     "/manifest.json": page("manifest.json", "application/manifest+json"),
     "/icon.png": page("icon.png", "image/png"),
+    "/sw.js": page("sw.js", "text/javascript"),
   };
 
   http
@@ -151,6 +208,9 @@ function serve() {
 
       if (req.method === "GET" && pages[url.pathname]) {
         return pages[url.pathname](res);
+      }
+      if (req.method === "GET" && url.pathname === "/api/vapid") {
+        return json(200, { key: vapid.publicKey });
       }
       if (req.method === "GET" && url.pathname === "/api/state") {
         return json(200, st);
@@ -173,9 +233,28 @@ function serve() {
           if (raw.length > 10_000) req.destroy();
         });
         req.on("end", () => {
+          const action = url.pathname.slice(5);
           try {
             const body = raw ? JSON.parse(raw) : {};
-            if (!act(st, url.pathname.slice(5), Date.now(), body)) {
+            if (action === "subscribe" || action === "unsubscribe") {
+              const { endpoint, keys } = body;
+              if (!/^https:\/\//.test(endpoint))
+                throw new Error("bad endpoint");
+              if (action === "unsubscribe") subs.delete(endpoint);
+              else if (
+                typeof keys?.p256dh !== "string" ||
+                typeof keys?.auth !== "string"
+              )
+                throw new Error("bad keys");
+              else
+                subs.set(endpoint, {
+                  endpoint,
+                  keys: { p256dh: keys.p256dh, auth: keys.auth },
+                });
+              saveSubs();
+              return json(200, { ok: true });
+            }
+            if (!act(st, action, Date.now(), body)) {
               return json(404, { error: "unknown action" });
             }
           } catch (e) {

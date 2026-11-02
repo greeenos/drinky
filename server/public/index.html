@@ -73,18 +73,17 @@
         color: var(--muted);
         font-size: 14px;
       }
-      .glasses {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
+      .bar {
+        height: 12px;
         margin: 12px 0;
-        font-size: 28px;
+        border-radius: 6px;
+        background: var(--line);
+        overflow: hidden;
       }
-      .glasses span {
-        opacity: 0.2;
-      }
-      .glasses span.full {
-        opacity: 1;
+      .bar div {
+        height: 100%;
+        background: var(--blue);
+        transition: width 0.4s;
       }
       button {
         font: inherit;
@@ -189,13 +188,17 @@
       <div id="offline">Offline, reconnecting…</div>
       <section class="card">
         <div class="big" id="amount">–</div>
-        <div class="glasses" id="glasses"></div>
+        <div class="bar"><div id="bar"></div></div>
         <div class="muted" id="next"></div>
       </section>
-      <button class="primary" id="drink">I drank a glass</button>
+      <button class="primary" id="drink">I took a sip</button>
       <div class="row">
         <button id="remind">Remind everywhere now</button>
       </div>
+      <button id="notify" hidden>
+        🔔 Turn on notifications on this device
+      </button>
+      <div class="muted" id="notifyHint"></div>
       <form class="card" id="settings">
         <div
           class="row"
@@ -208,15 +211,11 @@
         </div>
         <div class="grid" style="margin-top: 12px">
           <label
-            >Glass (ml)<input type="number" name="glassMl" min="1"
+            >One sip (ml)<input type="number" name="sipMl" min="1"
           /></label>
           <label
             >Daily goal (ml)<input type="number" name="dailyGoalMl" min="1"
           /></label>
-          <label
-            >Remind every (min)<input type="number" name="intervalMin" min="1"
-          /></label>
-          <span></span>
           <label>From<input type="time" name="start" /></label>
           <label>To<input type="time" name="end" /></label>
         </div>
@@ -227,7 +226,7 @@
 
     <div id="overlay">
       <div style="font-size: 64px">💧</div>
-      <div style="font-size: 28px; font-weight: 700">Time to drink</div>
+      <div style="font-size: 28px; font-weight: 700">Take a sip</div>
       <div class="big" id="ovGlass"></div>
       <div id="ovProgress"></div>
       <button class="primary" data-act="drink">Done ✓</button>
@@ -261,40 +260,41 @@
         (d, i) => `<label><input type="checkbox" value="${i}" />${d}</label>`,
       ).join("");
 
-      let formLoaded = false;
+      // Settings live on the server; refresh the form whenever another
+      // device changes them, unless you're editing it right now.
+      let shownSettings = "";
       function render(st) {
         const s = st.settings;
-        const total = Math.ceil(s.dailyGoalMl / s.glassMl);
-        const done = Math.floor(st.drankMl / s.glassMl);
-        const L = (ml) => (ml / 1000).toFixed(1);
+        const L = (ml) => (ml / 1000).toFixed(2);
         $("amount").textContent = `${L(st.drankMl)} / ${L(s.dailyGoalMl)} L`;
-        $("glasses").innerHTML = Array.from(
-          { length: total },
-          (_, i) => `<span class="${i < done ? "full" : ""}">🥛</span>`,
-        ).join("");
+        $("bar").style.width =
+          `${Math.min(100, (100 * st.drankMl) / s.dailyGoalMl)}%`;
         $("next").textContent =
           st.drankMl >= s.dailyGoalMl
             ? "Goal reached 🎉"
             : st.nextAt
               ? `Next reminder at ${new Date(st.nextAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
               : "No reminders right now (outside hours or off)";
-        $("drink").textContent = `I drank a glass (${s.glassMl} ml)`;
-        $("ovGlass").textContent = `${s.glassMl} ml`;
+        $("drink").textContent = `I took a sip (+${s.sipMl} ml)`;
+        $("ovGlass").textContent = `~${s.sipMl} ml`;
         $("ovProgress").textContent =
-          `Glass ${Math.min(done + 1, total)} of ${total} · ${L(st.drankMl)} / ${L(s.dailyGoalMl)} L today`;
+          `${L(st.drankMl)} / ${L(s.dailyGoalMl)} L today`;
         $("overlay").classList.toggle("on", st.active || OVERLAY);
 
-        if (!formLoaded) {
+        const json = JSON.stringify(s);
+        if (
+          json !== shownSettings &&
+          !$("settings").contains(document.activeElement)
+        ) {
+          shownSettings = json;
           const f = $("settings").elements;
           f.enabled.checked = s.enabled;
-          f.glassMl.value = s.glassMl;
+          f.sipMl.value = s.sipMl;
           f.dailyGoalMl.value = s.dailyGoalMl;
-          f.intervalMin.value = s.intervalMin;
           f.start.value = hhmm(s.startMin);
           f.end.value = hhmm(s.endMin);
           for (const c of $("days").querySelectorAll("input"))
             c.checked = s.days.includes(Number(c.value));
-          formLoaded = true;
         }
       }
 
@@ -308,6 +308,40 @@
       }
       connect();
 
+      // PWA push notifications. On iPhone they need iOS 16.4+ and Drinky
+      // opened from the home screen (Share → Add to Home Screen).
+      async function setupPush(ask) {
+        if (OVERLAY || !("serviceWorker" in navigator)) return;
+        const reg = await navigator.serviceWorker.register("/sw.js");
+        if (!("PushManager" in window)) {
+          $("notifyHint").textContent =
+            "For notifications on iPhone: Share → Add to Home Screen, then open Drinky from there.";
+          return;
+        }
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub && ask) {
+          if ((await Notification.requestPermission()) !== "granted") {
+            $("notifyHint").textContent =
+              "Notifications are blocked in this browser's settings.";
+            return;
+          }
+          const { key } = await fetch("/api/vapid").then((r) => r.json());
+          const raw = atob(key.replace(/-/g, "+").replace(/_/g, "/"));
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: Uint8Array.from(raw, (c) => c.charCodeAt(0)),
+          });
+        }
+        if (sub) await post("subscribe", sub.toJSON());
+        $("notify").hidden = Boolean(sub);
+        $("notifyHint").textContent = sub
+          ? "🔔 Notifications are on here."
+          : "";
+      }
+      setupPush(false).catch(() => {});
+      $("notify").onclick = () =>
+        setupPush(true).catch((e) => ($("notifyHint").textContent = String(e)));
+
       $("drink").onclick = () => post("drink");
       $("remind").onclick = () => post("remind");
       for (const b of document.querySelectorAll("[data-act]"))
@@ -319,9 +353,8 @@
         try {
           await post("settings", {
             enabled: f.enabled.checked,
-            glassMl: Number(f.glassMl.value),
+            sipMl: Number(f.sipMl.value),
             dailyGoalMl: Number(f.dailyGoalMl.value),
-            intervalMin: Number(f.intervalMin.value),
             startMin: toMin(f.start.value),
             endMin: toMin(f.end.value),
             days: [...$("days").querySelectorAll("input:checked")].map((c) =>
