@@ -196,7 +196,7 @@ fn main() {
                     "drink" => post(server_url(app), "drink"),
                     "remind" => post(server_url(app), "remind"),
                     "open" => {
-                        if let Ok(url) = server_url(app).parse() {
+                        if let Ok(url) = format!("{}/?app", server_url(app)).parse() {
                             open_window(app, "main", WebviewUrl::External(url), 480.0, 760.0);
                         }
                     }

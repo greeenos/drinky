@@ -34,6 +34,12 @@
           --line: #12324d;
         }
       }
+      html {
+        scrollbar-width: none; /* still scrolls, no bar */
+      }
+      ::-webkit-scrollbar {
+        display: none;
+      }
       * {
         box-sizing: border-box;
       }
@@ -237,7 +243,11 @@
     <script>
       const $ = (id) => document.getElementById(id);
       // Desktop app opens ?overlay=1 on every monitor while a reminder is due.
-      const OVERLAY = new URLSearchParams(location.search).has("overlay");
+      const params = new URLSearchParams(location.search);
+      const OVERLAY = params.has("overlay");
+      // Inside the desktop app reminders come as the overlay, and its webview
+      // can't do web notifications anyway.
+      const IN_APP = params.has("app");
       document.body.classList.toggle("overlay", OVERLAY);
       $("overlay").classList.toggle("on", OVERLAY);
       const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -311,7 +321,7 @@
       // PWA push notifications. On iPhone they need iOS 16.4+ and Drinky
       // opened from the home screen (Share → Add to Home Screen).
       async function setupPush(ask) {
-        if (OVERLAY || !("serviceWorker" in navigator)) return;
+        if (OVERLAY || IN_APP || !("serviceWorker" in navigator)) return;
         const reg = await navigator.serviceWorker.register("/sw.js");
         if (!("PushManager" in window)) {
           $("notifyHint").textContent =
